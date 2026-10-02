@@ -17,7 +17,7 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 SECRET_COOKIES_PATH = "/etc/secrets/youtube_cookies.txt"
 
 def setup_cookies():
-    """Kopiuje ciasteczka do /tmp, aby yt-dlp mógł w nich zapisywać (omijamy Read-Only FS)."""
+    """Kopiuje ciasteczka do /tmp, aby yt-dlp miał pełne prawa zapisu (bypass Read-Only FS)."""
     if os.path.exists(SECRET_COOKIES_PATH) and os.path.getsize(SECRET_COOKIES_PATH) > 0:
         shutil.copy(SECRET_COOKIES_PATH, WORKING_COOKIES_PATH)
         return WORKING_COOKIES_PATH
@@ -60,7 +60,7 @@ async def download_media(
         'no_warnings': True,
     }
 
-    # Przygotowanie i podpięcie ciasteczek z prawami zapisu w /tmp
+    # Podpięcie ciasteczek
     cookies_file = setup_cookies()
     if cookies_file:
         ydl_opts['cookiefile'] = cookies_file
@@ -75,9 +75,9 @@ async def download_media(
             }],
         })
     else:
-        # Bardziej elastyczny wybór MP4
+        # POBIERA NAJLEPSZE WIDEO I AUDIO NIEZALEŻNIE OD FORMATU, A ZAPISUJE JAKO MP4
         ydl_opts.update({
-            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best',
+            'format': 'bestvideo+bestaudio/best',
             'merge_output_format': 'mp4',
         })
 
@@ -86,9 +86,10 @@ async def download_media(
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
 
+            # Pobranie poprawnego rozszerzenia po przetworzeniu
             if format_type == "mp3":
                 filename = os.path.splitext(filename)[0] + ".mp3"
-            elif not filename.endswith(".mp4"):
+            else:
                 filename = os.path.splitext(filename)[0] + ".mp4"
 
         if not os.path.exists(filename):
