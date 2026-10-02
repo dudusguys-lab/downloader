@@ -9,23 +9,7 @@ import yt_dlp
 app = FastAPI()
 
 DOWNLOAD_DIR = "/tmp/downloads"
-WORKING_COOKIES_PATH = "/tmp/youtube_cookies.txt"
-SECRET_COOKIES_PATH = "/etc/secrets/youtube_cookies.txt"
-
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-
-def setup_cookies():
-    if os.path.exists(SECRET_COOKIES_PATH) and os.path.getsize(SECRET_COOKIES_PATH) > 0:
-        shutil.copy(SECRET_COOKIES_PATH, WORKING_COOKIES_PATH)
-        return WORKING_COOKIES_PATH
-    
-    cookies_env = os.getenv("YOUTUBE_COOKIES", "")
-    if cookies_env:
-        with open(WORKING_COOKIES_PATH, "w", encoding="utf-8") as f:
-            f.write(cookies_env)
-        return WORKING_COOKIES_PATH
-    
-    return None
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -49,6 +33,7 @@ async def download_media(
     unique_id = str(uuid.uuid4())[:8]
     output_template = os.path.join(DOWNLOAD_DIR, f"%(title)s_{unique_id}.%(ext)s")
 
+    # Kluczowe: Używamy klienta android bez ciasteczek, co omija błędy 429 i PO Token
     ydl_opts = {
         'outtmpl': output_template,
         'noplaylist': True,
@@ -56,14 +41,10 @@ async def download_media(
         'no_warnings': False,
         'extractor_args': {
             'youtube': {
-                'player_client': ['ios', 'tvhtml5', 'web']
+                'player_client': ['android']
             }
         }
     }
-
-    cookies_file = setup_cookies()
-    if cookies_file:
-        ydl_opts['cookiefile'] = cookies_file
 
     if format_type == "mp3":
         ydl_opts.update({
@@ -76,7 +57,7 @@ async def download_media(
         })
     else:
         ydl_opts.update({
-            'format': 'bestvideo+bestaudio/best',
+            'format': 'best/bestvideo+bestaudio',
             'merge_output_format': 'mp4',
         })
 
