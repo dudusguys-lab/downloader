@@ -1,6 +1,7 @@
 import os
 import uuid
 import shutil
+import requests
 from fastapi import FastAPI, Form, BackgroundTasks, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -12,6 +13,20 @@ DOWNLOAD_DIR = "/tmp/downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+def get_free_proxy():
+    """Pobiera świeże darmowe proxy w locie, żeby omijać bana IP na Renderze."""
+    try:
+        response = requests.get(
+            "https://api.proxyscrape.com/v2/?request=getproxies&protocol=http&timeout=5000&country=all&ssl=yes",
+            timeout=5
+        )
+        proxies = [p.strip() for p in response.text.splitlines() if p.strip()]
+        if proxies:
+            return f"http://{proxies[0]}"
+    except Exception as e:
+        print(f"Nie udało się pobrać proxy: {e}")
+    return None
 
 def cleanup_file(filepath: str):
     if os.path.exists(filepath):
@@ -40,10 +55,13 @@ async def download_media(
         'no_warnings': False,
     }
 
-    # Pobieranie proxy ze zmiennej środowiskowej Rendera
-    proxy_url = os.getenv("PROXY_URL")
-    if proxy_url:
-        ydl_opts['proxy'] = proxy_url
+    # Automatyczne podstawienie darmowego proxy
+    proxy = get_free_proxy()
+    if proxy:
+        print(f"Używam proxy: {proxy}")
+        ydl_opts['proxy'] = proxy
+    else:
+        print("Brak proxy, próba bezpośredniego połączenia...")
 
     if format_type == "mp3":
         ydl_opts.update({
