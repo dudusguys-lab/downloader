@@ -8,16 +8,13 @@ import yt_dlp
 
 app = FastAPI()
 
-# Katalogi tymczasowe
 DOWNLOAD_DIR = "/tmp/downloads"
 WORKING_COOKIES_PATH = "/tmp/youtube_cookies.txt"
-os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-
-# Ścieżka źródłowa z Secret Files Rendera
 SECRET_COOKIES_PATH = "/etc/secrets/youtube_cookies.txt"
 
+os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+
 def setup_cookies():
-    """Kopiuje ciasteczka do /tmp, aby yt-dlp miał pełne prawa zapisu."""
     if os.path.exists(SECRET_COOKIES_PATH) and os.path.getsize(SECRET_COOKIES_PATH) > 0:
         shutil.copy(SECRET_COOKIES_PATH, WORKING_COOKIES_PATH)
         return WORKING_COOKIES_PATH
@@ -33,12 +30,11 @@ def setup_cookies():
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 def cleanup_file(filepath: str):
-    """Usuwa pobrany plik z dysku po wysłaniu go do użytkownika."""
     if os.path.exists(filepath):
         try:
             os.remove(filepath)
         except Exception as e:
-            print(f"Błąd podczas usuwania pliku {filepath}: {e}")
+            print(f"Błąd usuwania pliku {filepath}: {e}")
 
 @app.get("/")
 def read_root():
@@ -53,14 +49,19 @@ async def download_media(
     unique_id = str(uuid.uuid4())[:8]
     output_template = os.path.join(DOWNLOAD_DIR, f"%(title)s_{unique_id}.%(ext)s")
 
+    # Kluczowe: zmiana klienta na android/ios, co pozwala ominąć blokady IP dla datacenters
     ydl_opts = {
         'outtmpl': output_template,
         'noplaylist': True,
-        'quiet': True,
-        'no_warnings': True,
+        'quiet': False,
+        'no_warnings': False,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'ios', 'mweb']
+            }
+        }
     }
 
-    # Podpięcie ciasteczek
     cookies_file = setup_cookies()
     if cookies_file:
         ydl_opts['cookiefile'] = cookies_file
@@ -75,9 +76,9 @@ async def download_media(
             }],
         })
     else:
-        # POBIERANIE WIDEO: Pobiera gotowy, scalony plik (omija błąd braku formatu)
+        # POBIERANIE WIDEO: uniwersalny filtr bez narzucania kontenerów
         ydl_opts.update({
-            'format': 'best[ext=mp4]/bestvideo+bestaudio/best',
+            'format': 'bestvideo+bestaudio/best/b',
         })
 
     try:
@@ -85,7 +86,6 @@ async def download_media(
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
 
-        # Znajdź wygenerowany plik na podstawie unikalnego ID (zabezpieczenie na zmianę rozszerzenia przez ffmpeg)
         found_files = [os.path.join(DOWNLOAD_DIR, f) for f in os.listdir(DOWNLOAD_DIR) if unique_id in f]
         if found_files:
             filename = found_files[0]
