@@ -17,7 +17,7 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 SECRET_COOKIES_PATH = "/etc/secrets/youtube_cookies.txt"
 
 def setup_cookies():
-    """Kopiuje ciasteczka do /tmp, aby yt-dlp miał pełne prawa zapisu (bypass Read-Only FS)."""
+    """Kopiuje ciasteczka do /tmp, aby yt-dlp miał pełne prawa zapisu."""
     if os.path.exists(SECRET_COOKIES_PATH) and os.path.getsize(SECRET_COOKIES_PATH) > 0:
         shutil.copy(SECRET_COOKIES_PATH, WORKING_COOKIES_PATH)
         return WORKING_COOKIES_PATH
@@ -66,6 +66,7 @@ async def download_media(
         ydl_opts['cookiefile'] = cookies_file
 
     if format_type == "mp3":
+        # Pobiera najlepszy dźwięk (m4a/webm/mp3)
         ydl_opts.update({
             'format': 'bestaudio/best',
             'postprocessors': [{
@@ -75,10 +76,10 @@ async def download_media(
             }],
         })
     else:
-        # POBIERA NAJLEPSZE WIDEO I AUDIO NIEZALEŻNIE OD FORMATU, A ZAPISUJE JAKO MP4
+        # POBIERANIE WIDEO: Łapie jakikolwiek najlepszy format (połączony lub osobno)
+        # Zabezpieczenie przed brakiem konkretnego formatu
         ydl_opts.update({
-            'format': 'bestvideo+bestaudio/best',
-            'merge_output_format': 'mp4',
+            'format': 'b/bestvideo+bestaudio/best',
         })
 
     try:
@@ -86,14 +87,19 @@ async def download_media(
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
 
-            # Pobranie poprawnego rozszerzenia po przetworzeniu
+            # Pobranie rzeczywistej ścieżki pliku po przetworzeniu przez yt-dlp
             if format_type == "mp3":
-                filename = os.path.splitext(filename)[0] + ".mp3"
-            else:
-                filename = os.path.splitext(filename)[0] + ".mp4"
+                base = os.path.splitext(filename)[0]
+                if os.path.exists(base + ".mp3"):
+                    filename = base + ".mp3"
 
         if not os.path.exists(filename):
-            raise HTTPException(status_code=500, detail="Plik nie został przetworzony poprawnie.")
+            # Jeśli nazwa się zmieniła po scaleniu/konwersji, znajdź plik w katalogu po ID
+            found_files = [os.path.join(DOWNLOAD_DIR, f) for f in os.listdir(DOWNLOAD_DIR) if unique_id in f]
+            if found_files:
+                filename = found_files[0]
+            else:
+                raise HTTPException(status_code=500, detail="Plik nie został odnaleziony po pobraniu.")
 
         background_tasks.add_task(cleanup_file, filename)
         download_name = os.path.basename(filename)
