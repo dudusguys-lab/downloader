@@ -1,5 +1,6 @@
 import os
 import uuid
+import shutil
 from fastapi import FastAPI, Form, BackgroundTasks, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -7,18 +8,32 @@ import yt_dlp
 
 app = FastAPI()
 
-# Katalog na tymczasowe pobrane pliki
+# Katalogi tymczasowe
 DOWNLOAD_DIR = "/tmp/downloads"
+WORKING_COOKIES_PATH = "/tmp/youtube_cookies.txt"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-# Ścieżka do pliku ciasteczek w Secret Files Rendera
-COOKIES_FILE = "/etc/secrets/youtube_cookies.txt"
+# Ścieżka źródłowa z Secret Files Rendera
+SECRET_COOKIES_PATH = "/etc/secrets/youtube_cookies.txt"
 
-# Serwowanie plików statycznych (frontend)
+def setup_cookies():
+    """Kopiuje ciasteczka do /tmp, aby yt-dlp mógł w nich zapisywać (omijamy Read-Only FS)."""
+    if os.path.exists(SECRET_COOKIES_PATH) and os.path.getsize(SECRET_COOKIES_PATH) > 0:
+        shutil.copy(SECRET_COOKIES_PATH, WORKING_COOKIES_PATH)
+        return WORKING_COOKIES_PATH
+    
+    cookies_env = os.getenv("YOUTUBE_COOKIES", "")
+    if cookies_env:
+        with open(WORKING_COOKIES_PATH, "w", encoding="utf-8") as f:
+            f.write(cookies_env)
+        return WORKING_COOKIES_PATH
+    
+    return None
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 def cleanup_file(filepath: str):
-    """Usuwa plik z dysku po wysłaniu go do użytkownika."""
+    """Usuwa pobrany plik z dysku po wysłaniu go do użytkownika."""
     if os.path.exists(filepath):
         try:
             os.remove(filepath)
@@ -38,22 +53,17 @@ async def download_media(
     unique_id = str(uuid.uuid4())[:8]
     output_template = os.path.join(DOWNLOAD_DIR, f"%(title)s_{unique_id}.%(ext)s")
 
-    # Podstawowa konfiguracja yt-dlp
     ydl_opts = {
         'outtmpl': output_template,
-        'noplaylist': True,  # Ignoruje całe playlisty/miksy i pobiera tylko 1 film
+        'noplaylist': True,
         'quiet': True,
         'no_warnings': True,
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['android', 'web_creator', 'ios']
-            }
-        }
     }
 
-    # Jeśli plik ciasteczek istnieje w Secret Files Rendera, podpinamy go do yt-dlp
-    if os.path.exists(COOKIES_FILE) and os.path.getsize(COOKIES_FILE) > 0:
-        ydl_opts['cookiefile'] = COOKIES_FILE
+    # Przygotowanie i podpięcie ciasteczek z prawami zapisu w /tmp
+    cookies_file = setup_cookies()
+    if cookies_file:
+        ydl_opts['cookiefile'] = cookies_file
 
     if format_type == "mp3":
         ydl_opts.update({
@@ -65,9 +75,9 @@ async def download_media(
             }],
         })
     else:
-        # Format MP4
+        # Bardziej elastyczny wybór MP4
         ydl_opts.update({
-            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best',
             'merge_output_format': 'mp4',
         })
 
@@ -76,7 +86,6 @@ async def download_media(
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
 
-            # Pobranie poprawnego rozszerzenia po konwersji
             if format_type == "mp3":
                 filename = os.path.splitext(filename)[0] + ".mp3"
             elif not filename.endswith(".mp4"):
@@ -85,9 +94,7 @@ async def download_media(
         if not os.path.exists(filename):
             raise HTTPException(status_code=500, detail="Plik nie został przetworzony poprawnie.")
 
-        # Czyszczenie pliku w tle po wysłaniu
         background_tasks.add_task(cleanup_file, filename)
-
         download_name = os.path.basename(filename)
 
         return FileResponse(
