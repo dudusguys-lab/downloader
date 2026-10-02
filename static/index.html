@@ -1,74 +1,195 @@
 <!DOCTYPE html>
-<html lang="pl">
+<html lang="pl" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Media Downloader</title>
+    <title>Media Downloader — Szybkie Pobieranie MP3 & MP4</title>
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eff6ff',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+    </style>
 </head>
-<body class="bg-slate-950 text-white min-h-screen flex items-center justify-center p-4">
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between selection:bg-blue-500 selection:text-white relative overflow-x-hidden">
 
-    <div class="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl">
-        <h1 class="text-2xl font-bold text-center text-indigo-400 mb-2">Media Downloader</h1>
-        <p class="text-slate-400 text-xs text-center mb-6">Wklej link, aby pobrać wideo lub muzykę bez reklam.</p>
-
-        <form id="downForm" class="space-y-4">
-            <div>
-                <label class="block text-xs text-slate-400 uppercase font-semibold mb-1">Adres URL</label>
-                <input type="url" id="urlInput" required placeholder="https://www.youtube.com/watch?v=..." 
-                       class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-            </div>
-
-            <div>
-                <label class="block text-xs text-slate-400 uppercase font-semibold mb-1">Format</label>
-                <select id="formatSelect" class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <option value="mp3">🎵 Audio MP3 (320 kbps)</option>
-                    <option value="mp4">🎬 Wideo MP4 (Najwyższa jakość)</option>
-                </select>
-            </div>
-
-            <button type="submit" id="btnSubmit" class="w-full bg-indigo-600 hover:bg-indigo-500 font-bold py-3 rounded-xl transition">
-                Pobierz
-            </button>
-        </form>
-
-        <div id="status" class="mt-4 text-center text-sm hidden"></div>
+    <!-- Tło z subtelnym gradientem i poświatą -->
+    <div class="fixed inset-0 pointer-events-none -z-10">
+        <div class="absolute -top-40 -left-40 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl"></div>
+        <div class="absolute -bottom-40 -right-40 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl"></div>
     </div>
 
+    <!-- Nawigacja / Nagłówek -->
+    <header class="w-full max-w-5xl mx-auto px-6 py-6 flex items-center justify-between">
+        <div class="flex items-center gap-2 font-bold text-xl tracking-tight">
+            <div class="p-2 bg-blue-600 rounded-xl text-white shadow-lg shadow-blue-500/30">
+                <i data-lucide="download-cloud" class="w-6 h-6"></i>
+            </div>
+            <span>Media<span class="text-blue-500">Downloader</span></span>
+        </div>
+        <span class="text-xs font-semibold px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-slate-400 flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Serwer aktywny
+        </span>
+    </header>
+
+    <!-- Główna sekcja -->
+    <main class="flex-1 flex items-center justify-center p-4">
+        <div class="w-full max-w-xl bg-slate-900/80 backdrop-blur-xl border border-slate-800/80 rounded-3xl p-6 sm:p-10 shadow-2xl relative overflow-hidden">
+            
+            <div class="text-center mb-8">
+                <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight text-white mb-3">
+                    Pobieraj wideo i muzykę
+                </h1>
+                <p class="text-slate-400 text-sm sm:text-base leading-relaxed">
+                    Wklej link z YouTube, SoundCloud lub innych serwisów, wybierz format i pobieraj w najwyższej jakości bez reklam.
+                </p>
+            </div>
+
+            <form id="downForm" class="space-y-6">
+                <!-- Pole adres URL -->
+                <div class="space-y-2">
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 ml-1">
+                        Adres URL filmu lub utworu
+                    </label>
+                    <div class="relative flex items-center">
+                        <div class="absolute left-4 text-slate-500">
+                            <i data-lucide="link" class="w-5 h-5"></i>
+                        </div>
+                        <input type="url" id="urlInput" required autocomplete="off"
+                               placeholder="https://www.youtube.com/watch?v=..." 
+                               class="w-full pl-12 pr-4 py-4 bg-slate-950/60 border border-slate-800 rounded-2xl text-sm sm:text-base placeholder:text-slate-600 text-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all">
+                    </div>
+                </div>
+
+                <!-- Wybór formatu -->
+                <div class="space-y-2">
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 ml-1">
+                        Format wyjściowy
+                    </label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <label class="relative flex items-center justify-center gap-2 p-4 rounded-2xl bg-slate-950/60 border border-slate-800 cursor-pointer hover:border-slate-700 transition-all [&:has(:checked)]:border-blue-500 [&:has(:checked)]:bg-blue-500/10">
+                            <input type="radio" name="format_type" value="mp3" checked class="hidden">
+                            <i data-lucide="music" class="w-5 h-5 text-blue-400"></i>
+                            <span class="text-sm font-medium">Audio (MP3)</span>
+                        </label>
+                        <label class="relative flex items-center justify-center gap-2 p-4 rounded-2xl bg-slate-950/60 border border-slate-800 cursor-pointer hover:border-slate-700 transition-all [&:has(:checked)]:border-blue-500 [&:has(:checked)]:bg-blue-500/10">
+                            <input type="radio" name="format_type" value="mp4" class="hidden">
+                            <i data-lucide="video" class="w-5 h-5 text-indigo-400"></i>
+                            <span class="text-sm font-medium">Wideo (MP4)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Przycisk Akcji -->
+                <button type="submit" id="btnSubmit" 
+                        class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-4 rounded-2xl shadow-lg shadow-blue-600/30 transition-all active:scale-[0.99] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <i data-lucide="download" class="w-5 h-5" id="btnIcon"></i>
+                    <span id="btnText">Pobierz plik</span>
+                </button>
+            </form>
+
+            <!-- Box ze stanem przetwarzenia -->
+            <div id="statusBox" class="mt-6 hidden p-4 rounded-2xl border transition-all">
+                <div class="flex items-center gap-3">
+                    <div id="statusSpinner" class="hidden">
+                        <div class="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                    <div id="statusIcon"></div>
+                    <p id="statusText" class="text-sm font-medium"></p>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Stopka -->
+    <footer class="w-full max-w-5xl mx-auto px-6 py-6 text-center text-xs text-slate-600">
+        <p>© 2026 MediaDownloader. Wszelkie prawa zastrzeżone.</p>
+    </footer>
+
+    <!-- Skrypt obslugi -->
     <script>
+        lucide.createIcons();
+
         const form = document.getElementById('downForm');
         const btn = document.getElementById('btnSubmit');
-        const status = document.getElementById('status');
+        const btnText = document.getElementById('btnText');
+        const btnIcon = document.getElementById('btnIcon');
+        const statusBox = document.getElementById('statusBox');
+        const statusSpinner = document.getElementById('statusSpinner');
+        const statusIcon = document.getElementById('statusIcon');
+        const statusText = document.getElementById('statusText');
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
+
+            const url = document.getElementById('urlInput').value.trim();
+            const format = document.querySelector('input[name="format_type"]:checked').value;
+
+            if (!url) return;
+
+            // Ustaw stan ładowania
             btn.disabled = true;
-            btn.innerText = 'Przetwarzanie...';
-            status.className = 'mt-4 text-center text-sm text-indigo-400 block';
-            status.innerText = '⏳ Pobieranie pliku na serwerze...';
+            btnText.innerText = 'Przetwarzanie na serwerze...';
+            btnIcon.classList.add('hidden');
+            
+            statusBox.className = 'mt-6 p-4 rounded-2xl border border-blue-500/30 bg-blue-500/10 text-blue-400 block';
+            statusSpinner.className = 'block';
+            statusIcon.innerHTML = '';
+            statusText.innerText = 'Serwer pobiera i konwertuje Twój plik... To może potrwać kilkanaście sekund.';
 
             const formData = new FormData();
-            formData.append('url', document.getElementById('urlInput').value);
-            formData.append('format_type', document.getElementById('formatSelect').value);
+            formData.append('url', url);
+            formData.append('format_type', format);
 
             try {
                 const res = await fetch('/api/download', { method: 'POST', body: formData });
-                if (!res.ok) throw new Error('Błąd pobierania');
+                if (!res.ok) throw new Error('Nie udało się przetworzyć pliku.');
 
                 const blob = await res.blob();
+                const downloadUrl = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
-                a.href = window.URL.createObjectURL(blob);
-                a.download = 'pobrany_plik.' + document.getElementById('formatSelect').value;
+                a.href = downloadUrl;
+                a.download = `pobrane_${Date.now()}.${format}`;
+                document.body.appendChild(a);
                 a.click();
+                a.remove();
 
-                status.className = 'mt-4 text-center text-sm text-emerald-400 block';
-                status.innerText = '✅ Pobrano pomyślnie!';
+                statusBox.className = 'mt-6 p-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 block';
+                statusSpinner.className = 'hidden';
+                statusIcon.innerHTML = '<i data-lucide="check-circle" class="w-5 h-5 text-emerald-400"></i>';
+                statusText.innerText = 'Gotowe! Plik został pobrany na Twój komputer.';
+                lucide.createIcons();
+
             } catch (err) {
-                status.className = 'mt-4 text-center text-sm text-rose-400 block';
-                status.innerText = '❌ Błąd: Sprawdź adres URL.';
+                statusBox.className = 'mt-6 p-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 text-rose-400 block';
+                statusSpinner.className = 'hidden';
+                statusIcon.innerHTML = '<i data-lucide="alert-circle" class="w-5 h-5 text-rose-400"></i>';
+                statusText.innerText = 'Wystąpił błąd. Upewnij się, że wkleiłeś poprawny link.';
+                lucide.createIcons();
             } finally {
                 btn.disabled = false;
-                btn.innerText = 'Pobierz';
+                btnText.innerText = 'Pobierz plik';
+                btnIcon.classList.remove('hidden');
             }
         });
     </script>
