@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Media Downloader</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-white min-h-screen flex items-center justify-center p-4">
+
+    <div class="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl">
+        <h1 class="text-2xl font-bold text-center text-indigo-400 mb-2">Media Downloader</h1>
+        <p class="text-slate-400 text-xs text-center mb-6">Wklej link, aby pobrać wideo lub muzykę bez reklam.</p>
+
+        <form id="downForm" class="space-y-4">
+            <div>
+                <label class="block text-xs text-slate-400 uppercase font-semibold mb-1">Adres URL</label>
+                <input type="url" id="urlInput" required placeholder="https://www.youtube.com/watch?v=..." 
+                       class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+
+            <div>
+                <label class="block text-xs text-slate-400 uppercase font-semibold mb-1">Format</label>
+                <select id="formatSelect" class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option value="mp3">🎵 Audio MP3 (320 kbps)</option>
+                    <option value="mp4">🎬 Wideo MP4 (Najwyższa jakość)</option>
+                </select>
+            </div>
+
+            <button type="submit" id="btnSubmit" class="w-full bg-indigo-600 hover:bg-indigo-500 font-bold py-3 rounded-xl transition">
+                Pobierz
+            </button>
+        </form>
+
+        <div id="status" class="mt-4 text-center text-sm hidden"></div>
+    </div>
+
+    <script>
+        const form = document.getElementById('downForm');
+        const btn = document.getElementById('btnSubmit');
+        const status = document.getElementById('status');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            btn.disabled = true;
+            btn.innerText = 'Przetwarzanie...';
+            status.className = 'mt-4 text-center text-sm text-indigo-400 block';
+            status.innerText = '⏳ Pobieranie pliku na serwerze...';
+
+            const formData = new FormData();
+            formData.append('url', document.getElementById('urlInput').value);
+            formData.append('format_type', document.getElementById('formatSelect').value);
+
+            try {
+                const res = await fetch('/api/download', { method: 'POST', body: formData });
+                if (!res.ok) throw new Error('Błąd pobierania');
+
+                const blob = await res.blob();
+                const a = document.createElement('a');
+                a.href = window.URL.createObjectURL(blob);
+                a.download = 'pobrany_plik.' + document.getElementById('formatSelect').value;
+                a.click();
+
+                status.className = 'mt-4 text-center text-sm text-emerald-400 block';
+                status.innerText = '✅ Pobrano pomyślnie!';
+            } catch (err) {
+                status.className = 'mt-4 text-center text-sm text-rose-400 block';
+                status.innerText = '❌ Błąd: Sprawdź adres URL.';
+            } finally {
+                btn.disabled = false;
+                btn.innerText = 'Pobierz';
+            }
+        });
+    </script>
+</body>
+</html>
