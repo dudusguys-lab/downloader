@@ -33,18 +33,17 @@ async def download_media(
     unique_id = str(uuid.uuid4())[:8]
     output_template = os.path.join(DOWNLOAD_DIR, f"%(title)s_{unique_id}.%(ext)s")
 
-    # Kluczowe: Używamy klienta android bez ciasteczek, co omija błędy 429 i PO Token
     ydl_opts = {
         'outtmpl': output_template,
         'noplaylist': True,
         'quiet': False,
         'no_warnings': False,
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['android']
-            }
-        }
     }
+
+    # Pobieranie proxy ze zmiennej środowiskowej Rendera
+    proxy_url = os.getenv("PROXY_URL")
+    if proxy_url:
+        ydl_opts['proxy'] = proxy_url
 
     if format_type == "mp3":
         ydl_opts.update({
@@ -57,7 +56,7 @@ async def download_media(
         })
     else:
         ydl_opts.update({
-            'format': 'best/bestvideo+bestaudio',
+            'format': 'bestvideo+bestaudio/best',
             'merge_output_format': 'mp4',
         })
 
