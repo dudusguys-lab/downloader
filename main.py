@@ -15,7 +15,6 @@ SECRET_COOKIES_PATH = "/etc/secrets/youtube_cookies.txt"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 def setup_cookies():
-    """Kopiuje ciasteczka do /tmp (bypass read-only FS)."""
     if os.path.exists(SECRET_COOKIES_PATH) and os.path.getsize(SECRET_COOKIES_PATH) > 0:
         shutil.copy(SECRET_COOKIES_PATH, WORKING_COOKIES_PATH)
         return WORKING_COOKIES_PATH
@@ -55,9 +54,13 @@ async def download_media(
         'noplaylist': True,
         'quiet': False,
         'no_warnings': False,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['ios', 'tvhtml5', 'web']
+            }
+        }
     }
 
-    # Podpięcie ciasteczek
     cookies_file = setup_cookies()
     if cookies_file:
         ydl_opts['cookiefile'] = cookies_file
@@ -72,7 +75,6 @@ async def download_media(
             }],
         })
     else:
-        # Najbardziej elastyczny podział: najlepsze wideo z audio, a jak nie ma - jakikolwiek działający format
         ydl_opts.update({
             'format': 'bestvideo+bestaudio/best',
             'merge_output_format': 'mp4',
