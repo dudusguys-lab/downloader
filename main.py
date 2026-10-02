@@ -7,9 +7,12 @@ import yt_dlp
 
 app = FastAPI()
 
-# Katalog na tymczasowe pliki
+# Katalog na tymczasowe pobrane pliki
 DOWNLOAD_DIR = "/tmp/downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+
+# Ścieżka do pliku ciasteczek w Secret Files Rendera
+COOKIES_FILE = "/etc/secrets/youtube_cookies.txt"
 
 # Serwowanie plików statycznych (frontend)
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -35,7 +38,7 @@ async def download_media(
     unique_id = str(uuid.uuid4())[:8]
     output_template = os.path.join(DOWNLOAD_DIR, f"%(title)s_{unique_id}.%(ext)s")
 
-    # Konfiguracja yt-dlp z ominięciem blokad botów (Android / iOS API)
+    # Podstawowa konfiguracja yt-dlp
     ydl_opts = {
         'outtmpl': output_template,
         'noplaylist': True,  # Ignoruje całe playlisty/miksy i pobiera tylko 1 film
@@ -48,6 +51,10 @@ async def download_media(
         }
     }
 
+    # Jeśli plik ciasteczek istnieje w Secret Files Rendera, podpinamy go do yt-dlp
+    if os.path.exists(COOKIES_FILE) and os.path.getsize(COOKIES_FILE) > 0:
+        ydl_opts['cookiefile'] = COOKIES_FILE
+
     if format_type == "mp3":
         ydl_opts.update({
             'format': 'bestaudio/best',
@@ -58,7 +65,7 @@ async def download_media(
             }],
         })
     else:
-        # Format MP4 z połączonym wideo i audio
+        # Format MP4
         ydl_opts.update({
             'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
             'merge_output_format': 'mp4',
@@ -69,7 +76,7 @@ async def download_media(
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
 
-            # Pobieranie poprawnego rozszerzenia po konwersji
+            # Pobranie poprawnego rozszerzenia po konwersji
             if format_type == "mp3":
                 filename = os.path.splitext(filename)[0] + ".mp3"
             elif not filename.endswith(".mp4"):
@@ -78,10 +85,9 @@ async def download_media(
         if not os.path.exists(filename):
             raise HTTPException(status_code=500, detail="Plik nie został przetworzony poprawnie.")
 
-        # Dodanie zadania czyszczenia w tle po wysłaniu pliku
+        # Czyszczenie pliku w tle po wysłaniu
         background_tasks.add_task(cleanup_file, filename)
 
-        # Pobranie czystej nazwy do nagłówka
         download_name = os.path.basename(filename)
 
         return FileResponse(
