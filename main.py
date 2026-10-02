@@ -66,7 +66,6 @@ async def download_media(
         ydl_opts['cookiefile'] = cookies_file
 
     if format_type == "mp3":
-        # Pobiera najlepszy dźwięk (m4a/webm/mp3)
         ydl_opts.update({
             'format': 'bestaudio/best',
             'postprocessors': [{
@@ -76,10 +75,9 @@ async def download_media(
             }],
         })
     else:
-        # POBIERANIE WIDEO: Łapie jakikolwiek najlepszy format (połączony lub osobno)
-        # Zabezpieczenie przed brakiem konkretnego formatu
+        # POBIERANIE WIDEO: Pobiera gotowy, scalony plik (omija błąd braku formatu)
         ydl_opts.update({
-            'format': 'b/bestvideo+bestaudio/best',
+            'format': 'best[ext=mp4]/bestvideo+bestaudio/best',
         })
 
     try:
@@ -87,19 +85,12 @@ async def download_media(
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
 
-            # Pobranie rzeczywistej ścieżki pliku po przetworzeniu przez yt-dlp
-            if format_type == "mp3":
-                base = os.path.splitext(filename)[0]
-                if os.path.exists(base + ".mp3"):
-                    filename = base + ".mp3"
-
-        if not os.path.exists(filename):
-            # Jeśli nazwa się zmieniła po scaleniu/konwersji, znajdź plik w katalogu po ID
-            found_files = [os.path.join(DOWNLOAD_DIR, f) for f in os.listdir(DOWNLOAD_DIR) if unique_id in f]
-            if found_files:
-                filename = found_files[0]
-            else:
-                raise HTTPException(status_code=500, detail="Plik nie został odnaleziony po pobraniu.")
+        # Znajdź wygenerowany plik na podstawie unikalnego ID (zabezpieczenie na zmianę rozszerzenia przez ffmpeg)
+        found_files = [os.path.join(DOWNLOAD_DIR, f) for f in os.listdir(DOWNLOAD_DIR) if unique_id in f]
+        if found_files:
+            filename = found_files[0]
+        elif not os.path.exists(filename):
+            raise HTTPException(status_code=500, detail="Plik nie został przetworzony poprawnie.")
 
         background_tasks.add_task(cleanup_file, filename)
         download_name = os.path.basename(filename)
